@@ -1,6 +1,6 @@
 # 使用轻量化的 Node.js 镜像
-FROM node:18-alpine
-
+#FROM node:18-alpine
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/node:18-alpine
 # 设置工作目录
 WORKDIR /usr/src/app
 
