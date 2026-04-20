@@ -47,6 +47,33 @@
             color: #bdc3c7;
             font-size: 14px;
         }
+
+        /* 响应式媒体查询：针对屏幕宽度进行适配 */
+        @media (max-width: 600px) {
+            canvas {
+                width: 300px;
+                height: 300px;
+            }
+            .score-board {
+                font-size: 20px;
+            }
+            .back-btn {
+                top: 10px;
+                left: 10px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            .instructions {
+                display: none; /* 在手机端隐藏键盘说明 */
+            }
+            .mobile-instructions {
+                display: block !important;
+                margin-top: 15px;
+                color: #f39c12;
+                font-size: 14px;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -54,6 +81,7 @@
     <div class="score-board">分数: <span id="score">0</span></div>
     <canvas id="gameCanvas" width="400" height="400"></canvas>
     <div class="instructions">使用键盘方向键 (↑ ↓ ← →) 控制蛇的移动</div>
+    <div class="mobile-instructions" style="display: none;">在屏幕上滑动来控制蛇的移动</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");

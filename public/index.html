@@ -343,6 +343,31 @@
             color: #95a5a6;
             margin-top: 50px;
         }
+
+        /* 响应式设计：CSS 媒体查询 */
+        @media (max-width: 768px) {
+            /* 调整标题在小屏幕上的大小 */
+            .header-titles h1 {
+                font-size: 1.8rem;
+            }
+
+            /* 通用隐藏类：在移动端隐藏 */
+            .hide-on-mobile {
+                display: none !important;
+            }
+
+            /* 通用显示类：在移动端显示 */
+            .show-on-mobile {
+                display: block !important;
+            }
+        }
+
+        @media (min-width: 769px) {
+            /* 通用显示类：在桌面端隐藏 */
+            .show-on-mobile {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -351,7 +376,8 @@
         <div class="header-content">
             <div class="header-titles">
                 <h1>🎮 Easyplay 大厅</h1>
-                <p>随时随地，轻松玩耍</p>
+                <p class="hide-on-mobile">随时随地，轻松玩耍</p>
+                <p class="show-on-mobile" style="margin-top: 5px; font-size: 1rem;">手机版专属</p>
             </div>
             <div class="auth-buttons">
                 <button id="loginBtn" class="auth-btn">登录 / 注册</button>

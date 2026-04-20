@@ -222,11 +222,37 @@
             height: 20px;
         }
 
+        /* 响应式媒体查询 */
+        @media (max-width: 500px) {
+            /* 在小屏幕下，调整房间控制区域的布局 */
+            .room-controls {
+                flex-direction: column;
+                padding: 15px;
+                width: 90%;
+            }
+            .room-controls input {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .room-controls button {
+                width: 100%;
+            }
+            /* 缩小棋盘以适应手机屏幕 */
+            .board-container {
+                transform: scale(0.8);
+                transform-origin: top center;
+                margin-bottom: -100px; /* 补偿 scale 带来的高度空白 */
+            }
+            /* 隐藏返回按钮文字，仅保留图标或在特定宽度隐藏 */
+            .back-btn-text {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
     <header>
-        <a href="/" class="back-btn">← 返回大厅</a>
+        <a href="/" class="back-btn">← <span class="back-btn-text">返回大厅</span></a>
         <h1>中国象棋对战</h1>
     </header>
 
