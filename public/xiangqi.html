@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国象棋对战 - EasyPlay</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            background-color: #1a1a1a;
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            text-decoration: none;
+            font-size: 1rem;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .room-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .room-controls input {
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 150px;
+        }
+
+        .room-controls button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            color: white;
+        }
+
+        .btn-create { background-color: #4CAF50; }
+        .btn-create:hover { background-color: #45a049; }
+        
+        .btn-join { background-color: #2196F3; }
+        .btn-join:hover { background-color: #1e88e5; }
+
+        .game-info {
+            display: none;
+            background: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .game-info span {
+            font-weight: bold;
+        }
+
+        .board-container {
+            display: none;
+            position: relative;
+            width: 450px;
+            height: 500px;
+            background-color: #e2b97f;
+            border: 2px solid #5c3a21;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            background-image: 
+                linear-gradient(#5c3a21 1px, transparent 1px),
+                linear-gradient(90deg, #5c3a21 1px, transparent 1px);
+            background-size: 50px 50px;
+            background-position: 25px 25px;
+        }
+
+        /* 画楚河汉界 */
+        .river {
+            position: absolute;
+            top: 225px; /* 4.5 * 50 */
+            left: 25px;
+            width: 400px;
+            height: 50px;
+            background-color: #e2b97f;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-size: 28px;
+            font-weight: bold;
+            color: #5c3a21;
+            font-family: "楷体", KaiTi, serif;
+        }
+
+        /* 修复边框和交叉线 */
+        .board-lines {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            width: 400px;
+            height: 450px;
+            border: 2px solid #5c3a21;
+            pointer-events: none;
+        }
+
+        /* 九宫格斜线 */
+        .palace-line {
+            position: absolute;
+            width: 141.4px; /* 100 * sqrt(2) */
+            height: 1px;
+            background-color: #5c3a21;
+            pointer-events: none;
+            transform-origin: 0 0;
+        }
+
+        .piece {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #f5deb3;
+            border: 2px solid #333;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.3), 2px 2px 5px rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            font-family: "楷体", KaiTi, serif;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+            transition: all 0.2s;
+            user-select: none;
+            z-index: 10;
+        }
+
+        .piece.red {
+            color: #d32f2f;
+            border-color: #d32f2f;
+        }
+
+        .piece.black {
+            color: #1a1a1a;
+            border-color: #1a1a1a;
+        }
+
+        .piece.selected {
+            box-shadow: 0 0 10px 5px rgba(255, 255, 0, 0.7);
+            z-index: 20;
+        }
+
+        .dot {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: rgba(0, 150, 0, 0.6);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            z-index: 5;
+            display: none;
+        }
+
+        .dot:hover {
+            background-color: rgba(0, 200, 0, 0.9);
+        }
+
+        #message-box {
+            margin-top: 15px;
+            color: #d32f2f;
+            font-weight: bold;
+            height: 20px;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/" class="back-btn">← 返回大厅</a>
+        <h1>中国象棋对战</h1>
+    </header>
+
+    <div class="container">
+        <div class="room-controls" id="room-controls">
+            <button class="btn-create" onclick="createRoom()">创建随机房间</button>
+            <span> 或 </span>
+            <input type="text" id="room-input" placeholder="输入4位房间号" maxlength="4">
+            <button class="btn-join" onclick="joinRoom()">加入房间</button>
+        </div>
+
+        <div class="game-info" id="game-info">
+            房间号: <span id="display-room-id" style="color:#2196F3;">----</span> | 
+            你的阵营: <span id="display-color">等待加入...</span> | 
+            当前状态: <span id="display-turn" style="color:#ff9800;">等待对手</span>
+        </div>
+
+        <div id="message-box"></div>
+
+        <div class="board-container" id="board">
+            <div class="board-lines"></div>
+            <!-- 楚河汉界 -->
+            <div class="river">
+                <div>楚河</div>
+                <div>汉界</div>
+            </div>
+            <!-- 九宫格斜线 黑方 -->
+            <div class="palace-line" style="top: 25px; left: 175px; transform: rotate(45deg);"></div>
+            <div class="palace-line" style="top: 25px; left: 275px; transform: rotate(135deg);"></div>
+            <!-- 九宫格斜线 红方 -->
+            <div class="palace-line" style="top: 375px; left: 175px; transform: rotate(45deg);"></div>
+            <div class="palace-line" style="top: 375px; left: 275px; transform: rotate(135deg);"></div>
+            
+            <!-- 棋子将由 JS 动态生成 -->
+            <!-- 移动提示点 -->
+            <div id="dots-container"></div>
+        </div>
+    </div>
+
+    <!-- 引入 Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myRoomId = null;
+        let myColor = null; // 'red' or 'black'
+        let currentTurn = 'red'; // 红方先手
+        let boardState = []; // 10x9 数组
+        let selectedPiece = null;
+
+        // 初始棋盘配置
+        const initialBoard = [
+            ['车','马','象','士','将','士','象','马','车'], // y=0 (黑方)
+            [null,null,null,null,null,null,null,null,null], // y=1
+            [null,'炮',null,null,null,null,null,'炮',null], // y=2
+            ['卒',null,'卒',null,'卒',null,'卒',null,'卒'], // y=3
+            [null,null,null,null,null,null,null,null,null], // y=4
+            [null,null,null,null,null,null,null,null,null], // y=5
+            ['兵',null,'兵',null,'兵',null,'兵',null,'兵'], // y=6 (红方)
+            [null,'砲',null,null,null,null,null,'砲',null], // y=7
+            [null,null,null,null,null,null,null,null,null], // y=8
+            ['俥','傌','相','仕','帅','仕','相','傌','俥']  // y=9
+        ];
+
+        // 颜色映射
+        const pieceColor = {
+            '车':'black', '马':'black', '象':'black', '士':'black', '将':'black', '炮':'black', '卒':'black',
+            '俥':'red', '傌':'red', '相':'red', '仕':'red', '帅':'red', '砲':'red', '兵':'red'
+        };
+
+        const boardEl = document.getElementById('board');
+        const dotsContainer = document.getElementById('dots-container');
+        const msgBox = document.getElementById('message-box');
+
+        // ==== 网络通信部分 ====
+
+        function createRoom() {
+            socket.emit('createRoom');
+        }
+
+        function joinRoom() {
+            const roomId = document.getElementById('room-input').value;
+            if (roomId.length === 4) {
+                socket.emit('joinRoom', roomId);
+            } else {
+                showMsg('请输入4位房间号');
+            }
+        }
+
+        socket.on('roomCreated', (roomId) => {
+            myRoomId = roomId;
+            document.getElementById('room-controls').style.display = 'none';
+            document.getElementById('game-info').style.display = 'block';
+            document.getElementById('display-room-id').innerText = roomId;
+            showMsg('房间创建成功，等待对手加入...');
+        });
+
+        socket.on('roomJoined', (data) => {
+            myRoomId = data.roomId;
+            document.getElementById('room-controls').style.display = 'none';
+            document.getElementById('game-info').style.display = 'block';
+            document.getElementById('display-room-id').innerText = myRoomId;
+        });
+
+        socket.on('gameStart', (data) => {
+            myColor = data.color;
+            document.getElementById('display-color').innerText = myColor === 'red' ? '红方 (先手)' : '黑方 (后手)';
+            document.getElementById('display-color').style.color = myColor === 'red' ? '#d32f2f' : '#1a1a1a';
+            document.getElementById('board').style.display = 'block';
+            
+            initBoard();
+            renderBoard();
+            updateTurnDisplay();
+            showMsg('游戏开始！');
+
+            // 如果是黑方，翻转棋盘视觉
+            if (myColor === 'black') {
+                boardEl.style.transform = 'rotate(180deg)';
+                // 棋子也需要反转，不然字是倒的，这在 renderPiece 里处理
+            }
+        });
+
+        socket.on('opponentMove', (data) => {
+            const { from, to } = data;
+            // 执行对手移动
+            movePiece(from.x, from.y, to.x, to.y, false);
+        });
+
+        socket.on('opponentDisconnected', () => {
+            showMsg('对手已断开连接');
+            document.getElementById('display-turn').innerText = '游戏结束';
+        });
+
+        socket.on('errorMsg', (msg) => {
+            showMsg(msg);
+        });
+
+        function showMsg(msg) {
+            msgBox.innerText = msg;
+            setTimeout(() => { if(msgBox.innerText === msg) msgBox.innerText = ''; }, 3000);
+        }
+
+        function updateTurnDisplay() {
+            const turnEl = document.getElementById('display-turn');
+            if (currentTurn === myColor) {
+                turnEl.innerText = '你的回合';
+                turnEl.style.color = '#4CAF50';
+            } else {
+                turnEl.innerText = '对手的回合';
+                turnEl.style.color = '#f44336';
+            }
+        }
+
+        // ==== 棋盘逻辑部分 ====
+
+        function initBoard() {
+            boardState = JSON.parse(JSON.stringify(initialBoard)); // 深拷贝
+            currentTurn = 'red';
+            selectedPiece = null;
+        }
+
+        function renderBoard() {
+            // 清理旧棋子
+            const pieces = document.querySelectorAll('.piece');
+            pieces.forEach(p => p.remove());
+            dotsContainer.innerHTML = '';
+
+            for (let y = 0; y < 10; y++) {
+                for (let x = 0; x < 9; x++) {
+                    const p = boardState[y][x];
+                    if (p) {
+                        renderPiece(x, y, p);
+                    }
+                }
+            }
+        }
+
+        function renderPiece(x, y, type) {
+            const piece = document.createElement('div');
+            piece.className = `piece ${pieceColor[type]}`;
+            piece.innerText = type;
+            piece.dataset.x = x;
+            piece.dataset.y = y;
+            piece.style.left = (25 + x * 50) + 'px';
+            piece.style.top = (25 + y * 50) + 'px';
+            
+            if (myColor === 'black') {
+                piece.style.transform = 'translate(-50%, -50%) rotate(180deg)';
+            }
+
+            piece.onclick = () => onPieceClick(x, y);
+            boardEl.appendChild(piece);
+        }
+
+        function onPieceClick(x, y) {
+            if (currentTurn !== myColor) {
+                showMsg('还没到你的回合！');
+                return;
+            }
+
+            const piece = boardState[y][x];
+            
+            // 点击自己的棋子：选中
+            if (piece && pieceColor[piece] === myColor) {
+                selectedPiece = {x, y};
+                // 更新高亮
+                document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
+                const el = document.querySelector(`.piece[data-x="${x}"][data-y="${y}"]`);
+                if (el) el.classList.add('selected');
+                showValidMoves(x, y);
+            } 
+            // 点击对方棋子：如果是移动目标，则吃子
+            else if (selectedPiece) {
+                tryMove(selectedPiece.x, selectedPiece.y, x, y);
+            }
+        }
+
+        function onEmptyClick(x, y) {
+            if (currentTurn !== myColor || !selectedPiece) return;
+            tryMove(selectedPiece.x, selectedPiece.y, x, y);
+        }
+
+        // 显示可行走的提示点
+        function showValidMoves(fromX, fromY) {
+            dotsContainer.innerHTML = '';
+            for (let y = 0; y < 10; y++) {
+                for (let x = 0; x < 9; x++) {
+                    if (isValidMove(fromX, fromY, x, y)) {
+                        const dot = document.createElement('div');
+                        dot.className = 'dot';
+                        dot.style.display = 'block';
+                        dot.style.left = (25 + x * 50) + 'px';
+                        dot.style.top = (25 + y * 50) + 'px';
+                        dot.onclick = (e) => {
+                            e.stopPropagation();
+                            tryMove(fromX, fromY, x, y);
+                        };
+                        dotsContainer.appendChild(dot);
+                    }
+                }
+            }
+        }
+
+        function tryMove(fromX, fromY, toX, toY) {
+            if (isValidMove(fromX, fromY, toX, toY)) {
+                // 发送给服务器
+                socket.emit('move', {
+                    roomId: myRoomId,
+                    from: {x: fromX, y: fromY},
+                    to: {x: toX, y: toY}
+                });
+                // 本地执行
+                movePiece(fromX, fromY, toX, toY, true);
+            } else {
+                showMsg('非法移动');
+            }
+        }
+
+        function movePiece(fromX, fromY, toX, toY, isMe) {
+            const pieceType = boardState[fromY][fromX];
+            const targetType = boardState[toY][toX];
+            
+            // 更新状态
+            boardState[toY][toX] = pieceType;
+            boardState[fromY][fromX] = null;
+            
+            // 重新渲染（简单粗暴）
+            renderBoard();
+            
+            selectedPiece = null;
+            currentTurn = currentTurn === 'red' ? 'black' : 'red';
+            updateTurnDisplay();
+
+            // 检查游戏结束 (将被吃)
+            if (targetType === '将' || targetType === '帅') {
+                const winner = targetType === '将' ? '红方' : '黑方';
+                document.getElementById('display-turn').innerText = `${winner} 胜利！`;
+                document.getElementById('display-turn').style.color = '#e91e63';
+                currentTurn = null; // 停止游戏
+            }
+        }
+
+        // ==== 规则判断核心 ====
+        function isValidMove(fx, fy, tx, ty) {
+            const piece = boardState[fy][fx];
+            const target = boardState[ty][tx];
+
+            // 不能吃自己的子
+            if (target && pieceColor[target] === pieceColor[piece]) return false;
+
+            const dx = tx - fx;
+            const dy = ty - fy;
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+
+            switch (piece) {
+                case '将': case '帅':
+                    // 飞将规则 (目标是对方将帅，且在同一列，中间无子)
+                    if (target && (target === '将' || target === '帅') && fx === tx) {
+                        let count = 0;
+                        const minY = Math.min(fy, ty);
+                        const maxY = Math.max(fy, ty);
+                        for (let y = minY + 1; y < maxY; y++) {
+                            if (boardState[y][fx]) count++;
+                        }
+                        if (count === 0) return true;
+                    }
+                    // 正常移动：九宫格内，每次1步
+                    if (tx < 3 || tx > 5) return false;
+                    if (piece === '帅' && ty < 7) return false;
+                    if (piece === '将' && ty > 2) return false;
+                    return (absDx + absDy === 1);
+
+                case '士': case '仕':
+                    // 九宫格内，斜走1步
+                    if (tx < 3 || tx > 5) return false;
+                    if (piece === '仕' && ty < 7) return false;
+                    if (piece === '士' && ty > 2) return false;
+                    return (absDx === 1 && absDy === 1);
+
+                case '象': case '相':
+                    // 走田字，不能过河，不能塞象眼
+                    if (absDx !== 2 || absDy !== 2) return false;
+                    if (piece === '相' && ty < 5) return false;
+                    if (piece === '象' && ty > 4) return false;
+                    // 检查象眼
+                    if (boardState[fy + dy/2][fx + dx/2]) return false;
+                    return true;
+
+                case '马': case '傌':
+                    // 走日字，不能撇马腿
+                    if (absDx === 1 && absDy === 2) {
+                        if (boardState[fy + dy/2][fx]) return false; // 垂直方向马腿
+                        return true;
+                    }
+                    if (absDx === 2 && absDy === 1) {
+                        if (boardState[fy][fx + dx/2]) return false; // 水平方向马腿
+                        return true;
+                    }
+                    return false;
+
+                case '车': case '俥':
+                    // 直线移动，中间不能有子
+                    if (fx !== tx && fy !== ty) return false;
+                    return countPiecesBetween(fx, fy, tx, ty) === 0;
+
+                case '炮': case '砲':
+                    if (fx !== tx && fy !== ty) return false;
+                    const count = countPiecesBetween(fx, fy, tx, ty);
+                    if (target) {
+                        // 吃子必须隔一个
+                        return count === 1;
+                    } else {
+                        // 移动中间不能有子
+                        return count === 0;
+                    }
+
+                case '兵': case '卒':
+                    // 兵卒规则
+                    if (piece === '兵') {
+                        if (dy > 0) return false; // 不能后退
+                        if (fy > 4) { // 没过河
+                            return dy === -1 && dx === 0;
+                        } else { // 已过河
+                            return (dy === -1 && dx === 0) || (dy === 0 && absDx === 1);
+                        }
+                    } else { // 卒
+                        if (dy < 0) return false;
+                        if (fy < 5) { // 没过河
+                            return dy === 1 && dx === 0;
+                        } else { // 已过河
+                            return (dy === 1 && dx === 0) || (dy === 0 && absDx === 1);
+                        }
+                    }
+            }
+            return false;
+        }
+
+        // 计算两点之间(直线)的棋子数，不包含两端
+        function countPiecesBetween(x1, y1, x2, y2) {
+            let count = 0;
+            if (x1 === x2) {
+                const minY = Math.min(y1, y2);
+                const maxY = Math.max(y1, y2);
+                for (let y = minY + 1; y < maxY; y++) {
+                    if (boardState[y][x1]) count++;
+                }
+            } else {
+                const minX = Math.min(x1, x2);
+                const maxX = Math.max(x1, x2);
+                for (let x = minX + 1; x < maxX; x++) {
+                    if (boardState[y1][x]) count++;
+                }
+            }
+            return count;
+        }
+
+        // 添加棋盘空白处点击事件
+        boardEl.addEventListener('click', (e) => {
+            if (e.target.classList.contains('board-container') || e.target.classList.contains('board-lines') || e.target.classList.contains('river') || e.target.classList.contains('palace-line')) {
+                const rect = boardEl.getBoundingClientRect();
+                // 考虑点击位置，推算 x, y
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                
+                let boardX = Math.round((clickX - 25) / 50);
+                let boardY = Math.round((clickY - 25) / 50);
+                
+                if (myColor === 'black') {
+                    boardX = 8 - boardX;
+                    boardY = 9 - boardY;
+                }
+
+                if (boardX >= 0 && boardX <= 8 && boardY >= 0 && boardY <= 9) {
+                    onEmptyClick(boardX, boardY);
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  easyplay-game:
+    # 从当前目录的 Dockerfile 构建镜像
+    build: .
+    # 指定容器名称
+    container_name: easyplay-mini-game
+    # 端口映射: 宿主机外部端口(26002) : 容器内部端口(26902)
+    ports:
+      - "26002:26902"
+    # 环境变量传递
+    environment:
+      - NODE_ENV=production
+      - PORT=26902
+    # 自动重启策略：除非手动停止，否则总是尝试重启
+    restart: unless-stopped

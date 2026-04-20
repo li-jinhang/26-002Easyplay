@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Easyplay 小游戏大厅</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --bg-color: #f8f9fa;
+            --text-color: #2c3e50;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-titles h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+        }
+
+        .header-titles p {
+            margin: 10px 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .auth-buttons {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .auth-btn {
+            background-color: white;
+            color: var(--primary-color);
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            background-color: #f8f9fa;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .logout-btn {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .logout-btn:hover {
+            background-color: #c0392b;
+            color: white;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            background-color: rgba(0,0,0,0.5); 
+            backdrop-filter: blur(3px);
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            position: relative;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .auth-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.3s;
+            position: relative;
+        }
+
+        .auth-tab.active {
+            color: var(--primary-color);
+        }
+
+        .auth-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--primary-color);
+        }
+
+        .auth-form {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .auth-form.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .auth-form input {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .auth-form input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .submit-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+
+        .submit-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .form-message {
+            text-align: center;
+            font-size: 0.9rem;
+            min-height: 20px;
+            margin-top: -5px;
+            margin-bottom: 5px;
+        }
+        .form-message.error {
+            color: #e74c3c;
+        }
+        .form-message.success {
+            color: #2ecc71;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .game-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .game-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+
+        .game-card.disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .game-card.disabled:hover {
+            transform: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+        }
+
+        .game-icon {
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            background: linear-gradient(135deg, #e0eafc, #cfdef3);
+        }
+
+        .game-card:nth-child(1) .game-icon {
+            background: linear-gradient(135deg, #abecd6, #fbed96);
+        }
+        
+        .game-card:nth-child(2) .game-icon {
+            background: linear-gradient(135deg, #fbc2eb, #a6c1ee);
+        }
+
+        .game-card:nth-child(3) .game-icon {
+            background: linear-gradient(135deg, #ff9a9e, #fecfef);
+        }
+
+        .game-info {
+            padding: 20px;
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .game-title {
+            margin: 0 0 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .game-desc {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .play-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 25px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 25px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background-color 0.3s;
+        }
+
+        .game-card:hover .play-btn {
+            background-color: #2980b9;
+        }
+
+        .disabled .play-btn {
+            background-color: #95a5a6;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #95a5a6;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <div class="header-titles">
+                <h1>🎮 Easyplay 大厅</h1>
+                <p>随时随地，轻松玩耍</p>
+            </div>
+            <div class="auth-buttons">
+                <button id="loginBtn" class="auth-btn">登录 / 注册</button>
+                <div id="userProfile" class="user-profile" style="display: none;">
+                    <span id="welcomeText"></span>
+                    <button id="logoutBtn" class="auth-btn logout-btn">退出</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModalBtn">&times;</span>
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">登录</button>
+                <button class="auth-tab" data-tab="register">注册</button>
+            </div>
+            
+            <form id="loginForm" class="auth-form active">
+                <input type="text" id="loginUsername" placeholder="用户名" required>
+                <input type="password" id="loginPassword" placeholder="密码" required>
+                <div id="loginMessage" class="form-message"></div>
+                <button type="submit" class="submit-btn">登录</button>
+            </form>
+
+            <form id="registerForm" class="auth-form">
+                <input type="text" id="regUsername" placeholder="用户名" required>
+                <input type="password" id="regPassword" placeholder="密码" required>
+                <input type="password" id="regConfirmPassword" placeholder="确认密码" required>
+                <div id="regMessage" class="form-message"></div>
+                <button type="submit" class="submit-btn">注册</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="game-grid">
+            <!-- 贪吃蛇 -->
+            <a href="snake.html" class="game-card">
+                <div class="game-icon">🐍</div>
+                <div class="game-info">
+                    <h2 class="game-title">经典贪吃蛇</h2>
+                    <p class="game-desc">重温童年经典，控制小蛇吃掉食物，不断变长！注意不要撞到墙壁或自己。</p>
+                    <div class="play-btn">开始游戏</div>
+                </div>
+            </a>
+
+            <!-- 中国象棋 -->
+            <a href="xiangqi.html" class="game-card">
+                <div class="game-icon">♟️</div>
+                <div class="game-info">
+                    <h2 class="game-title">中国象棋 (联机)</h2>
+                    <p class="game-desc">楚河汉界，排兵布阵！创建房间邀请好友，在线进行实时对战。</p>
+                    <div class="play-btn">开始对弈</div>
+                </div>
+            </a>
+
+            <!-- 俄罗斯方块 -->
+            <a href="#" class="game-card disabled" onclick="event.preventDefault();">
+                <div class="game-icon">🧱</div>
+                <div class="game-info">
+                    <h2 class="game-title">俄罗斯方块</h2>
+                    <p class="game-desc">经典下落方块游戏，拼接成完整的一行即可消除得分。敬请期待！</p>
+                    <div class="play-btn">即将推出</div>
+                </div>
+            </a>
+
+            <!-- 2048 -->
+            <a href="#" class="game-card disabled" onclick="event.preventDefault();">
+                <div class="game-icon">🔢</div>
+                <div class="game-info">
+                    <h2 class="game-title">2048</h2>
+                    <p class="game-desc">滑动数字方块，相同数字相加，看看你能否合成传说中的2048！敬请期待！</p>
+                    <div class="play-btn">即将推出</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Easyplay Mini Games. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // DOM Elements
+        const modal = document.getElementById('authModal');
+        const loginBtn = document.getElementById('loginBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const authTabs = document.querySelectorAll('.auth-tab');
+        const authForms = document.querySelectorAll('.auth-form');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        
+        const userProfile = document.getElementById('userProfile');
+        const welcomeText = document.getElementById('welcomeText');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        const loginMessage = document.getElementById('loginMessage');
+        const regMessage = document.getElementById('regMessage');
+
+        // Check login status on load
+        function checkLoginStatus() {
+            const currentUser = localStorage.getItem('easyplay_user');
+            if (currentUser) {
+                loginBtn.style.display = 'none';
+                userProfile.style.display = 'flex';
+                welcomeText.textContent = `欢迎，${currentUser}`;
+            } else {
+                loginBtn.style.display = 'block';
+                userProfile.style.display = 'none';
+            }
+        }
+
+        // Show Modal
+        loginBtn.addEventListener('click', () => {
+            modal.classList.add('show');
+            resetForms();
+        });
+
+        // Close Modal
+        closeModalBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+
+        // Switch Tabs
+        authTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Update tabs
+                authTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update forms
+                const target = tab.getAttribute('data-tab');
+                authForms.forEach(f => f.classList.remove('active'));
+                document.getElementById(`${target}Form`).classList.add('active');
+                
+                resetForms();
+            });
+        });
+
+        function resetForms() {
+            loginForm.reset();
+            registerForm.reset();
+            loginMessage.textContent = '';
+            loginMessage.className = 'form-message';
+            regMessage.textContent = '';
+            regMessage.className = 'form-message';
+        }
+
+        // Handle Registration
+        registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const confirmPassword = document.getElementById('regConfirmPassword').value;
+
+            if (password !== confirmPassword) {
+                showMessage(regMessage, '两次输入的密码不一致', 'error');
+                return;
+            }
+
+            // Mock saving to localStorage
+            const users = JSON.parse(localStorage.getItem('easyplay_users') || '{}');
+            if (users[username]) {
+                showMessage(regMessage, '用户名已存在', 'error');
+                return;
+            }
+
+            users[username] = password;
+            localStorage.setItem('easyplay_users', JSON.stringify(users));
+            
+            showMessage(regMessage, '注册成功，请登录', 'success');
+            setTimeout(() => {
+                // Switch to login tab
+                document.querySelector('.auth-tab[data-tab="login"]').click();
+                document.getElementById('loginUsername').value = username;
+            }, 1000);
+        });
+
+        // Handle Login
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            const users = JSON.parse(localStorage.getItem('easyplay_users') || '{}');
+            
+            if (users[username] && users[username] === password) {
+                showMessage(loginMessage, '登录成功', 'success');
+                localStorage.setItem('easyplay_user', username);
+                setTimeout(() => {
+                    modal.classList.remove('show');
+                    checkLoginStatus();
+                }, 1000);
+            } else {
+                showMessage(loginMessage, '用户名或密码错误', 'error');
+            }
+        });
+
+        // Handle Logout
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('easyplay_user');
+            checkLoginStatus();
+        });
+
+        function showMessage(element, text, type) {
+            element.textContent = text;
+            element.className = `form-message ${type}`;
+        }
+
+        // Initialize
+        checkLoginStatus();
+    </script>
+</body>
+</html>
