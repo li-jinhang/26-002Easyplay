@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
+const { initPokerHandlers } = require('./pokerHandler');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,6 +19,9 @@ const xiangqiRooms = {};
 
 io.on('connection', (socket) => {
     console.log('新玩家连接:', socket.id);
+
+    // 初始化扑克处理器
+    initPokerHandlers(io, socket);
 
     // 创建房间
     socket.on('createRoom', () => {
