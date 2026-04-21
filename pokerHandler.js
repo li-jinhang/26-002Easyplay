@@ -1,11 +1,12 @@
-const pokerRooms = {};
+const RoomManager = require('./RoomManager');
+const { getCardType, canBeat, TYPES } = require('./pokerRules');
+
+const pokerRooms = new RoomManager('poker');
 
 function initPokerHandlers(io, socket) {
     // 扑克房间创建
     socket.on('pokerCreateRoom', (playerName) => {
-        const roomId = Math.floor(1000 + Math.random() * 9000).toString();
-        pokerRooms[roomId] = {
-            id: roomId,
+        const room = pokerRooms.createRoom(socket, {
             players: [socket.id],
             playerNames: { [socket.id]: playerName || '玩家1' },
             state: 'waiting', // waiting, calling, playing, over
@@ -17,9 +18,11 @@ function initPokerHandlers(io, socket) {
             passCount: 0,
             callScores: {},
             currentCaller: 0,
+            callCount: 0,
             baseScore: 0
-        };
-        socket.join('poker_' + roomId);
+        });
+        const roomId = room.id;
+        
         socket.emit('pokerRoomCreated', roomId);
         emitRoomUpdate(io, roomId);
         console.log(`玩家 ${socket.id} 创建了扑克房间 ${roomId}`);
@@ -27,12 +30,13 @@ function initPokerHandlers(io, socket) {
 
     // 加入房间
     socket.on('pokerJoinRoom', ({ roomId, playerName }) => {
-        const room = pokerRooms[roomId];
+        const room = pokerRooms.getRoom(roomId);
         if (room) {
             if (room.players.length < 3 && room.state === 'waiting') {
                 room.players.push(socket.id);
                 room.playerNames[socket.id] = playerName || `玩家${room.players.length}`;
-                socket.join('poker_' + roomId);
+                pokerRooms.joinRoom(socket, roomId);
+                
                 socket.emit('pokerRoomJoined', { roomId });
                 emitRoomUpdate(io, roomId);
                 console.log(`玩家 ${socket.id} 加入了扑克房间 ${roomId}`);
@@ -50,14 +54,14 @@ function initPokerHandlers(io, socket) {
 
     // 叫地主
     socket.on('pokerCall', ({ roomId, score }) => {
-        const room = pokerRooms[roomId];
+        const room = pokerRooms.getRoom(roomId);
         if (!room || room.state !== 'calling') return;
         
         const currentPlayerId = room.players[room.currentCaller];
         if (socket.id !== currentPlayerId) return; // Not their turn
 
         room.callScores[socket.id] = score;
-        io.to('poker_' + roomId).emit('pokerCallMessage', { player: socket.id, score });
+        pokerRooms.broadcast(io, roomId, 'pokerCallMessage', { player: socket.id, score });
 
         if (score === 3) {
             // 直接成为地主
@@ -67,8 +71,9 @@ function initPokerHandlers(io, socket) {
                 room.baseScore = score;
             }
             
-            room.currentCaller++;
-            if (room.currentCaller >= 3) {
+            room.callCount = (room.callCount || 0) + 1;
+            
+            if (room.callCount >= 3) {
                 // 叫分结束，找出最高分
                 let maxScore = -1;
                 let landlordId = null;
@@ -82,11 +87,12 @@ function initPokerHandlers(io, socket) {
                     setLandlord(io, room, landlordId, maxScore);
                 } else {
                     // 都不要，重新发牌
-                    io.to('poker_' + roomId).emit('pokerMessage', '都不叫，重新发牌');
+                    pokerRooms.broadcast(io, roomId, 'pokerMessage', '都不叫，重新发牌');
                     startGame(io, room);
                 }
             } else {
                 // 下一个人叫
+                room.currentCaller = (room.currentCaller + 1) % 3;
                 emitRoomUpdate(io, roomId);
             }
         }
@@ -94,28 +100,61 @@ function initPokerHandlers(io, socket) {
 
     // 出牌
     socket.on('pokerPlay', ({ roomId, cards }) => {
-        const room = pokerRooms[roomId];
+        const room = pokerRooms.getRoom(roomId);
         if (!room || room.state !== 'playing') return;
         
         const currentPlayerId = room.players[room.turnIndex];
         if (socket.id !== currentPlayerId) return;
 
-        // 这里应该加入牌型验证逻辑。为了简化，我们假设前端已经验证过牌型合法性，以及是否大过上家
-        // 后端直接接受出牌
-        
+        if (!cards || cards.length === 0) {
+            socket.emit('errorMsg', '出牌不能为空');
+            return;
+        }
+
+        // 验证玩家是否有这些牌
+        const myCards = [...room.cards[socket.id]];
+        let hasCards = true;
+        for (const c of cards) {
+            const idx = myCards.indexOf(c);
+            if (idx === -1) {
+                hasCards = false;
+                break;
+            }
+            myCards.splice(idx, 1);
+        }
+        if (!hasCards) {
+            socket.emit('errorMsg', '你没有这些牌');
+            return;
+        }
+
+        // 验证牌型是否合法
+        const cardType = getCardType(cards);
+        if (cardType.type === TYPES.ERROR) {
+            socket.emit('errorMsg', '出牌不符合规则');
+            return;
+        }
+
+        // 验证是否大过上家
+        if (room.currentPlay && room.currentPlay.player !== socket.id) {
+            if (!canBeat(room.currentPlay.cards, cards)) {
+                socket.emit('errorMsg', '你的牌大不过上家');
+                return;
+            }
+        }
+
         // 从玩家手中移除牌
         room.cards[socket.id] = room.cards[socket.id].filter(c => !cards.includes(c));
         
         room.currentPlay = { cards, player: socket.id };
         room.passCount = 0; // 重置跳过次数
         
-        io.to('poker_' + roomId).emit('pokerPlayMessage', { player: socket.id, cards });
+        pokerRooms.broadcast(io, roomId, 'pokerPlayMessage', { player: socket.id, cards });
         
         // 检查是否游戏结束
         if (room.cards[socket.id].length === 0) {
             room.state = 'over';
             const isLandlord = socket.id === room.landlord;
-            io.to('poker_' + roomId).emit('pokerGameOver', { 
+            pokerRooms.broadcast(io, roomId, 'pokerGameOver', { 
                 winner: isLandlord ? 'landlord' : 'peasant',
                 landlord: room.landlord
             });
@@ -129,14 +168,14 @@ function initPokerHandlers(io, socket) {
 
     // 不出 (Pass)
     socket.on('pokerPass', ({ roomId }) => {
-        const room = pokerRooms[roomId];
+        const room = pokerRooms.getRoom(roomId);
         if (!room || room.state !== 'playing') return;
         
         const currentPlayerId = room.players[room.turnIndex];
         if (socket.id !== currentPlayerId) return;
 
         room.passCount++;
-        io.to('poker_' + roomId).emit('pokerPlayMessage', { player: socket.id, cards: [] }); // 空数组表示不出
+        pokerRooms.broadcast(io, roomId, 'pokerPlayMessage', { player: socket.id, cards: [] }); // 空数组表示不出
 
         if (room.passCount >= 2) {
             // 两个人都不要，下一个人可以随便出
@@ -148,27 +187,44 @@ function initPokerHandlers(io, socket) {
         emitRoomUpdate(io, roomId);
     });
 
+    // 准备 (重新开始)
+    socket.on('pokerReady', ({ roomId }) => {
+        const room = pokerRooms.getRoom(roomId);
+        if (!room || room.state !== 'over') return;
+        
+        room.readyPlayers = room.readyPlayers || new Set();
+        room.readyPlayers.add(socket.id);
+        
+        pokerRooms.broadcast(io, roomId, 'pokerMessage', `${room.playerNames[socket.id]} 已准备`);
+        
+        if (room.readyPlayers.size === 3) {
+            startGame(io, room);
+        }
+    });
+
     socket.on('disconnect', () => {
-        for (const roomId in pokerRooms) {
-            const room = pokerRooms[roomId];
+        const room = pokerRooms.findRoomByPlayer(socket.id, (r, playerId) => r.players.includes(playerId));
+        
+        if (room) {
+            const roomId = room.id;
             const idx = room.players.indexOf(socket.id);
             if (idx !== -1) {
                 room.players.splice(idx, 1);
-                io.to('poker_' + roomId).emit('pokerPlayerLeft', socket.id);
+                pokerRooms.broadcast(io, roomId, 'pokerPlayerLeft', socket.id);
+                
                 if (room.players.length === 0) {
-                    delete pokerRooms[roomId];
+                    pokerRooms.destroyRoom(roomId);
                 } else if (room.state !== 'over') {
                     room.state = 'over';
-                    io.to('poker_' + roomId).emit('pokerMessage', '有玩家掉线，游戏结束');
+                    pokerRooms.broadcast(io, roomId, 'pokerMessage', '有玩家掉线，游戏结束');
                 }
-                break;
             }
         }
     });
 }
 
 function emitRoomUpdate(io, roomId) {
-    const room = pokerRooms[roomId];
+    const room = pokerRooms.getRoom(roomId);
     if (!room) return;
     
     // 我们不应该把所有人的牌都广播给所有人，每个人只能看到自己的牌和别人的牌数
@@ -198,10 +254,12 @@ function startGame(io, room) {
     room.cards = {};
     room.callScores = {};
     room.currentCaller = Math.floor(Math.random() * 3); // 随机一个人开始叫地主
+    room.callCount = 0;
     room.baseScore = 0;
     room.landlord = null;
     room.currentPlay = null;
     room.passCount = 0;
+    room.readyPlayers = new Set();
 
     // 生成并洗牌
     const deck = generateDeck();

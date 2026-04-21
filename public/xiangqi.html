@@ -199,6 +199,11 @@
             z-index: 20;
         }
 
+        .piece.last-move {
+            box-shadow: 0 0 10px 5px rgba(33, 150, 243, 0.7);
+            z-index: 15;
+        }
+
         .dot {
             position: absolute;
             width: 14px;
@@ -294,6 +299,7 @@
 
     <!-- 引入 Socket.IO -->
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/xiangqiRules.js"></script>
     <script>
         const socket = io();
         let myRoomId = null;
@@ -301,26 +307,7 @@
         let currentTurn = 'red'; // 红方先手
         let boardState = []; // 10x9 数组
         let selectedPiece = null;
-
-        // 初始棋盘配置
-        const initialBoard = [
-            ['车','马','象','士','将','士','象','马','车'], // y=0 (黑方)
-            [null,null,null,null,null,null,null,null,null], // y=1
-            [null,'炮',null,null,null,null,null,'炮',null], // y=2
-            ['卒',null,'卒',null,'卒',null,'卒',null,'卒'], // y=3
-            [null,null,null,null,null,null,null,null,null], // y=4
-            [null,null,null,null,null,null,null,null,null], // y=5
-            ['兵',null,'兵',null,'兵',null,'兵',null,'兵'], // y=6 (红方)
-            [null,'砲',null,null,null,null,null,'砲',null], // y=7
-            [null,null,null,null,null,null,null,null,null], // y=8
-            ['俥','傌','相','仕','帅','仕','相','傌','俥']  // y=9
-        ];
-
-        // 颜色映射
-        const pieceColor = {
-            '车':'black', '马':'black', '象':'black', '士':'black', '将':'black', '炮':'black', '卒':'black',
-            '俥':'red', '傌':'red', '相':'red', '仕':'red', '帅':'red', '砲':'red', '兵':'red'
-        };
+        let lastMove = null; // {from: {x,y}, to: {x,y}}
 
         const boardEl = document.getElementById('board');
         const dotsContainer = document.getElementById('dots-container');
@@ -374,10 +361,44 @@
             }
         });
 
-        socket.on('opponentMove', (data) => {
-            const { from, to } = data;
-            // 执行对手移动
-            movePiece(from.x, from.y, to.x, to.y, false);
+        socket.on('moveSuccess', (data) => {
+            const { from, to, nextTurn, isCheck, isCheckmate } = data;
+            
+            // 更新本地状态
+            boardState[to.y][to.x] = boardState[from.y][from.x];
+            boardState[from.y][from.x] = null;
+            lastMove = { from, to };
+            currentTurn = nextTurn;
+            selectedPiece = null;
+
+            renderBoard();
+            updateTurnDisplay();
+
+            if (isCheckmate) {
+                showMsg('绝杀！游戏结束');
+            } else if (isCheck) {
+                showMsg('将军！');
+                document.getElementById('display-turn').innerText += ' (将军)';
+                document.getElementById('display-turn').style.color = '#e91e63';
+            }
+        });
+
+        socket.on('syncBoard', (data) => {
+            boardState = data.boardState;
+            currentTurn = data.currentTurn;
+            renderBoard();
+            updateTurnDisplay();
+            showMsg('已同步最新棋盘状态');
+        });
+
+        socket.on('gameOver', (data) => {
+            const { winner, reason } = data;
+            document.getElementById('display-turn').innerText = `${winner} 胜利！`;
+            document.getElementById('display-turn').style.color = '#e91e63';
+            currentTurn = null; // 停止游戏
+            if (reason === 'checkmate') {
+                showMsg('绝杀无解，游戏结束！');
+            }
         });
 
         socket.on('opponentDisconnected', () => {
@@ -408,9 +429,10 @@
         // ==== 棋盘逻辑部分 ====
 
         function initBoard() {
-            boardState = JSON.parse(JSON.stringify(initialBoard)); // 深拷贝
+            boardState = XiangqiRules.getBoardCopy();
             currentTurn = 'red';
             selectedPiece = null;
+            lastMove = null;
         }
 
         function renderBoard() {
@@ -431,7 +453,7 @@
 
         function renderPiece(x, y, type) {
             const piece = document.createElement('div');
-            piece.className = `piece ${pieceColor[type]}`;
+            piece.className = `piece ${XiangqiRules.pieceColor[type]}`;
             piece.innerText = type;
             piece.dataset.x = x;
             piece.dataset.y = y;
@@ -440,6 +462,11 @@
             
             if (myColor === 'black') {
                 piece.style.transform = 'translate(-50%, -50%) rotate(180deg)';
+            }
+
+            // 高亮最后移动的棋子
+            if (lastMove && (lastMove.to.x === x && lastMove.to.y === y)) {
+                piece.classList.add('last-move');
             }
 
             piece.onclick = () => onPieceClick(x, y);
@@ -455,7 +482,7 @@
             const piece = boardState[y][x];
             
             // 点击自己的棋子：选中
-            if (piece && pieceColor[piece] === myColor) {
+            if (piece && XiangqiRules.pieceColor[piece] === myColor) {
                 selectedPiece = {x, y};
                 // 更新高亮
                 document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
@@ -479,7 +506,7 @@
             dotsContainer.innerHTML = '';
             for (let y = 0; y < 10; y++) {
                 for (let x = 0; x < 9; x++) {
-                    if (isValidMove(fromX, fromY, x, y)) {
+                    if (XiangqiRules.isValidMove(boardState, fromX, fromY, x, y, myColor)) {
                         const dot = document.createElement('div');
                         dot.className = 'dot';
                         dot.style.display = 'block';
@@ -496,157 +523,17 @@
         }
 
         function tryMove(fromX, fromY, toX, toY) {
-            if (isValidMove(fromX, fromY, toX, toY)) {
-                // 发送给服务器
+            if (XiangqiRules.isValidMove(boardState, fromX, fromY, toX, toY, myColor)) {
+                // 发送给服务器，等待服务器确认
                 socket.emit('move', {
                     roomId: myRoomId,
                     from: {x: fromX, y: fromY},
                     to: {x: toX, y: toY}
                 });
-                // 本地执行
-                movePiece(fromX, fromY, toX, toY, true);
+                // 先不本地执行，等待 moveSuccess 事件以保证一致性
             } else {
-                showMsg('非法移动');
+                showMsg('非法移动或会送将');
             }
-        }
-
-        function movePiece(fromX, fromY, toX, toY, isMe) {
-            const pieceType = boardState[fromY][fromX];
-            const targetType = boardState[toY][toX];
-            
-            // 更新状态
-            boardState[toY][toX] = pieceType;
-            boardState[fromY][fromX] = null;
-            
-            // 重新渲染（简单粗暴）
-            renderBoard();
-            
-            selectedPiece = null;
-            currentTurn = currentTurn === 'red' ? 'black' : 'red';
-            updateTurnDisplay();
-
-            // 检查游戏结束 (将被吃)
-            if (targetType === '将' || targetType === '帅') {
-                const winner = targetType === '将' ? '红方' : '黑方';
-                document.getElementById('display-turn').innerText = `${winner} 胜利！`;
-                document.getElementById('display-turn').style.color = '#e91e63';
-                currentTurn = null; // 停止游戏
-            }
-        }
-
-        // ==== 规则判断核心 ====
-        function isValidMove(fx, fy, tx, ty) {
-            const piece = boardState[fy][fx];
-            const target = boardState[ty][tx];
-
-            // 不能吃自己的子
-            if (target && pieceColor[target] === pieceColor[piece]) return false;
-
-            const dx = tx - fx;
-            const dy = ty - fy;
-            const absDx = Math.abs(dx);
-            const absDy = Math.abs(dy);
-
-            switch (piece) {
-                case '将': case '帅':
-                    // 飞将规则 (目标是对方将帅，且在同一列，中间无子)
-                    if (target && (target === '将' || target === '帅') && fx === tx) {
-                        let count = 0;
-                        const minY = Math.min(fy, ty);
-                        const maxY = Math.max(fy, ty);
-                        for (let y = minY + 1; y < maxY; y++) {
-                            if (boardState[y][fx]) count++;
-                        }
-                        if (count === 0) return true;
-                    }
-                    // 正常移动：九宫格内，每次1步
-                    if (tx < 3 || tx > 5) return false;
-                    if (piece === '帅' && ty < 7) return false;
-                    if (piece === '将' && ty > 2) return false;
-                    return (absDx + absDy === 1);
-
-                case '士': case '仕':
-                    // 九宫格内，斜走1步
-                    if (tx < 3 || tx > 5) return false;
-                    if (piece === '仕' && ty < 7) return false;
-                    if (piece === '士' && ty > 2) return false;
-                    return (absDx === 1 && absDy === 1);
-
-                case '象': case '相':
-                    // 走田字，不能过河，不能塞象眼
-                    if (absDx !== 2 || absDy !== 2) return false;
-                    if (piece === '相' && ty < 5) return false;
-                    if (piece === '象' && ty > 4) return false;
-                    // 检查象眼
-                    if (boardState[fy + dy/2][fx + dx/2]) return false;
-                    return true;
-
-                case '马': case '傌':
-                    // 走日字，不能撇马腿
-                    if (absDx === 1 && absDy === 2) {
-                        if (boardState[fy + dy/2][fx]) return false; // 垂直方向马腿
-                        return true;
-                    }
-                    if (absDx === 2 && absDy === 1) {
-                        if (boardState[fy][fx + dx/2]) return false; // 水平方向马腿
-                        return true;
-                    }
-                    return false;
-
-                case '车': case '俥':
-                    // 直线移动，中间不能有子
-                    if (fx !== tx && fy !== ty) return false;
-                    return countPiecesBetween(fx, fy, tx, ty) === 0;
-
-                case '炮': case '砲':
-                    if (fx !== tx && fy !== ty) return false;
-                    const count = countPiecesBetween(fx, fy, tx, ty);
-                    if (target) {
-                        // 吃子必须隔一个
-                        return count === 1;
-                    } else {
-                        // 移动中间不能有子
-                        return count === 0;
-                    }
-
-                case '兵': case '卒':
-                    // 兵卒规则
-                    if (piece === '兵') {
-                        if (dy > 0) return false; // 不能后退
-                        if (fy > 4) { // 没过河
-                            return dy === -1 && dx === 0;
-                        } else { // 已过河
-                            return (dy === -1 && dx === 0) || (dy === 0 && absDx === 1);
-                        }
-                    } else { // 卒
-                        if (dy < 0) return false;
-                        if (fy < 5) { // 没过河
-                            return dy === 1 && dx === 0;
-                        } else { // 已过河
-                            return (dy === 1 && dx === 0) || (dy === 0 && absDx === 1);
-                        }
-                    }
-            }
-            return false;
-        }
-
-        // 计算两点之间(直线)的棋子数，不包含两端
-        function countPiecesBetween(x1, y1, x2, y2) {
-            let count = 0;
-            if (x1 === x2) {
-                const minY = Math.min(y1, y2);
-                const maxY = Math.max(y1, y2);
-                for (let y = minY + 1; y < maxY; y++) {
-                    if (boardState[y][x1]) count++;
-                }
-            } else {
-                const minX = Math.min(x1, x2);
-                const maxX = Math.max(x1, x2);
-                for (let x = minX + 1; x < maxX; x++) {
-                    if (boardState[y1][x]) count++;
-                }
-            }
-            return count;
         }
 
         // 添加棋盘空白处点击事件

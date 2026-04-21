@@ -358,7 +358,8 @@
                 <!-- 我的牌 -->
             </div>
             <div class="player-info" id="myInfo" style="margin-top: 10px;">
-                <span class="player-name" id="myName">我</span>
+                <div class="player-name" id="myName">我</div>
+                <div class="card-count">牌数: 0</div>
             </div>
         </div>
     </div>
@@ -425,7 +426,8 @@
 
         socket.on('errorMsg', (msg) => {
             showStatus(msg);
-            alert(msg);
+            showTableMessage(msg);
+            // alert(msg); // 移除阻塞的alert
         });
 
         socket.on('pokerMessage', (msg) => {
@@ -453,9 +455,8 @@
 
         socket.on('pokerGameOver', (data) => {
             const winner = data.winner === 'landlord' ? '地主' : '农民';
-            alert(`游戏结束！${winner}胜利！`);
             showTableMessage(`游戏结束，${winner}赢了`);
-            actionButtons.innerHTML = '';
+            // actionButtons.innerHTML = ''; // 让 updateUI 来处理
         });
 
         socket.on('pokerRoomUpdate', (state) => {
@@ -616,7 +617,20 @@
         function updateActionButtons(state) {
             actionButtons.innerHTML = '';
             
-            if (state.state === 'waiting' || state.state === 'over') {
+            if (state.state === 'waiting') {
+                return;
+            }
+
+            if (state.state === 'over') {
+                const readyBtn = document.createElement('button');
+                readyBtn.className = 'btn-success';
+                readyBtn.textContent = '再来一局';
+                readyBtn.onclick = () => {
+                    socket.emit('pokerReady', { roomId: currentRoomId });
+                    readyBtn.disabled = true;
+                    readyBtn.textContent = '已准备';
+                };
+                actionButtons.appendChild(readyBtn);
                 return;
             }
 
