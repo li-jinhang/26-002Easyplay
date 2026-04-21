@@ -253,6 +253,18 @@
                 display: none;
             }
         }
+        @media (max-width: 400px) {
+            .board-container {
+                transform: scale(0.7);
+                margin-bottom: -150px;
+            }
+        }
+        @media (max-width: 350px) {
+            .board-container {
+                transform: scale(0.6);
+                margin-bottom: -200px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -540,9 +552,13 @@
         boardEl.addEventListener('click', (e) => {
             if (e.target.classList.contains('board-container') || e.target.classList.contains('board-lines') || e.target.classList.contains('river') || e.target.classList.contains('palace-line')) {
                 const rect = boardEl.getBoundingClientRect();
-                // 考虑点击位置，推算 x, y
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
+                // 计算实际缩放比例
+                const scaleX = rect.width / 450;
+                const scaleY = rect.height / 500;
+                
+                // 考虑点击位置，推算 x, y (还原缩放)
+                const clickX = (e.clientX - rect.left) / scaleX;
+                const clickY = (e.clientY - rect.top) / scaleY;
                 
                 let boardX = Math.round((clickX - 25) / 50);
                 let boardY = Math.round((clickY - 25) / 50);

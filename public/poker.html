@@ -300,6 +300,81 @@
             border-radius: 15px;
             text-align: center;
         }
+
+        /* 响应式媒体查询 */
+        @media (max-width: 768px) {
+            :root {
+                --card-width: 60px;
+                --card-height: 90px;
+            }
+            .card {
+                margin-left: -35px;
+            }
+            .played-cards .card {
+                margin-left: -40px;
+            }
+            .played-cards .card:first-child {
+                margin-left: 0;
+            }
+            .opponents {
+                padding: 0 10px;
+            }
+            .player-info {
+                min-width: 80px;
+                padding: 10px;
+            }
+            .table-center {
+                top: 40%;
+            }
+            .action-buttons button {
+                padding: 8px 15px;
+                font-size: 0.9rem;
+            }
+            .card-top {
+                font-size: 1rem;
+            }
+            .card-suit {
+                font-size: 1.2rem;
+            }
+            .card-center {
+                font-size: 1.8rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            :root {
+                --card-width: 45px;
+                --card-height: 65px;
+            }
+            .card {
+                margin-left: -28px;
+            }
+            .played-cards .card {
+                margin-left: -30px;
+            }
+            .played-cards .card:first-child {
+                margin-left: 0;
+            }
+            .my-cards {
+                padding: 10px;
+            }
+            .card-top {
+                font-size: 0.8rem;
+            }
+            .card-suit {
+                font-size: 1rem;
+            }
+            .card-center {
+                font-size: 1.5rem;
+            }
+            header h1 {
+                font-size: 1.2rem;
+            }
+            .back-btn {
+                padding: 5px 10px;
+                font-size: 0.9rem;
+            }
+        }
     </style>
 </head>
 <body>
