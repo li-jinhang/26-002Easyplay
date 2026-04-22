@@ -13,7 +13,10 @@ const io = new Server(server);
 const PORT = process.env.PORT || 26902;
 
 // 托管 public 目录下的静态前端文件
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../../public')));
+
+// 托管 shared 目录下的静态前端文件
+app.use('/shared', express.static(path.join(__dirname, '../shared')));
 
 io.on('connection', (socket) => {
     console.log('新玩家连接:', socket.id);

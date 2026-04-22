@@ -2,9 +2,9 @@
   "name": "easyplay-mini-game",
   "version": "1.0.0",
   "description": "A simple HTML5 game website running on Node.js and Docker",
-  "main": "app.js",
+  "main": "src/server/app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node src/server/app.js"
   },
   "dependencies": {
     "express": "^4.18.2",

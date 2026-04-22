@@ -1,5 +1,5 @@
 const RoomManager = require('./RoomManager');
-const { getCardType, canBeat, TYPES } = require('./pokerRules');
+const { getCardType, canBeat, TYPES } = require('../shared/pokerRules');
 
 const pokerRooms = new RoomManager('poker');
 

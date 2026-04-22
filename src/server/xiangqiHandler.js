@@ -1,5 +1,5 @@
 const RoomManager = require('./RoomManager');
-const XiangqiRules = require('./public/xiangqiRules');
+const XiangqiRules = require('../shared/xiangqiRules');
 
 // 象棋房间管理器实例（不使用前缀，以保持与原有逻辑兼容）
 const xiangqiRooms = new RoomManager();
