@@ -5,3 +5,8 @@ Dockerfile
 docker-compose.yml
 .git
 .gitignore
+
+# 开发和测试相关文件，不需要打包进镜像
+tests/
+docs/
+*.md
