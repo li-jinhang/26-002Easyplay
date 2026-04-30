@@ -320,7 +320,18 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/shared/xiangqiRules.js"></script>
     <script>
-        const socket = io();
+        const PLAYER_TOKEN_KEY = 'easyplay_xiangqi_player_token';
+        let playerToken = localStorage.getItem(PLAYER_TOKEN_KEY);
+        if (!playerToken) {
+            playerToken = (window.crypto && window.crypto.randomUUID)
+                ? window.crypto.randomUUID()
+                : `token_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            localStorage.setItem(PLAYER_TOKEN_KEY, playerToken);
+        }
+
+        const socket = io({
+            auth: { playerToken }
+        });
         let myRoomId = null;
         let myColor = null; // 'red' or 'black'
         let currentTurn = 'red'; // 红方先手
@@ -373,12 +384,36 @@
             renderBoard();
             updateTurnDisplay();
             showMsg('游戏开始！');
+            applyBoardOrientation();
+        });
 
-            // 如果是黑方，翻转棋盘视觉
-            if (myColor === 'black') {
-                boardEl.style.transform = 'rotate(180deg)';
-                // 棋子也需要反转，不然字是倒的，这在 renderPiece 里处理
+        socket.on('roomRecovered', (data) => {
+            const { roomId, color, boardState: recoveredBoardState, currentTurn: recoveredTurn, status } = data;
+            myRoomId = roomId;
+            myColor = color;
+            boardState = recoveredBoardState;
+            currentTurn = recoveredTurn;
+            selectedPiece = null;
+            lastMove = null;
+
+            document.getElementById('room-controls').style.display = 'none';
+            document.getElementById('game-info').style.display = 'block';
+            document.getElementById('display-room-id').innerText = roomId;
+            document.getElementById('display-color').innerText = myColor === 'red' ? '红方 (先手)' : '黑方 (后手)';
+            document.getElementById('display-color').style.color = myColor === 'red' ? '#d32f2f' : '#1a1a1a';
+
+            if (status === 'playing') {
+                document.getElementById('board-wrapper').style.display = 'block';
+                document.getElementById('board').style.display = 'block';
+                renderBoard();
+                updateTurnDisplay();
+                applyBoardOrientation();
+            } else {
+                document.getElementById('display-turn').innerText = '等待对手';
+                document.getElementById('display-turn').style.color = '#ff9800';
             }
+
+            showMsg('已恢复到断线前房间');
         });
 
         socket.on('moveSuccess', (data) => {
@@ -421,9 +456,23 @@
             }
         });
 
-        socket.on('opponentDisconnected', () => {
-            showMsg('对手已断开连接');
+        socket.on('opponentTemporaryDisconnected', (data) => {
+            const timeoutSeconds = data?.timeoutSeconds || 120;
+            showMsg(`对手网络中断，${timeoutSeconds}秒内重连可继续`);
+            document.getElementById('display-turn').innerText = '等待对手重连';
+            document.getElementById('display-turn').style.color = '#ff9800';
+        });
+
+        socket.on('opponentReconnected', () => {
+            showMsg('对手已重连，游戏继续');
+            updateTurnDisplay();
+        });
+
+        socket.on('roomTerminated', () => {
+            showMsg('对手离线超时，房间已终止');
             document.getElementById('display-turn').innerText = '游戏结束';
+            document.getElementById('display-turn').style.color = '#e91e63';
+            currentTurn = null;
         });
 
         socket.on('errorMsg', (msg) => {
@@ -444,6 +493,10 @@
                 turnEl.innerText = '对手的回合';
                 turnEl.style.color = '#f44336';
             }
+        }
+
+        function applyBoardOrientation() {
+            boardEl.style.transform = myColor === 'black' ? 'rotate(180deg)' : 'none';
         }
 
         // ==== 棋盘逻辑部分 ====

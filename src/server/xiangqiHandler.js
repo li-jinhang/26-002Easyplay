@@ -3,15 +3,117 @@ const XiangqiRules = require('../shared/xiangqiRules');
 
 // 象棋房间管理器实例（不使用前缀，以保持与原有逻辑兼容）
 const xiangqiRooms = new RoomManager();
+const ROOM_TERMINATE_DELAY_MS = 2 * 60 * 1000;
+const ROOM_TERMINATE_DELAY_SECONDS = ROOM_TERMINATE_DELAY_MS / 1000;
+
+function getPlayerToken(socket) {
+    const token = socket?.handshake?.auth?.playerToken;
+    return typeof token === 'string' && token.trim() ? token.trim() : null;
+}
+
+function getPlayerColorBySocketId(room, socketId) {
+    if (room.players.red === socketId) return 'red';
+    if (room.players.black === socketId) return 'black';
+    return null;
+}
+
+function ensureDisconnectState(room) {
+    if (!room.disconnectTimers) {
+        room.disconnectTimers = { red: null, black: null };
+    }
+    if (!room.disconnectedPlayers) {
+        room.disconnectedPlayers = { red: null, black: null };
+    }
+}
+
+function clearDisconnectTimer(room, color) {
+    ensureDisconnectState(room);
+    if (room.disconnectTimers[color]) {
+        clearTimeout(room.disconnectTimers[color]);
+        room.disconnectTimers[color] = null;
+    }
+}
+
+function destroyRoomSafely(roomId) {
+    const room = xiangqiRooms.getRoom(roomId);
+    if (room) {
+        ensureDisconnectState(room);
+        clearDisconnectTimer(room, 'red');
+        clearDisconnectTimer(room, 'black');
+    }
+    xiangqiRooms.destroyRoom(roomId);
+}
+
+function scheduleRoomTermination(io, roomId, color, disconnectedSocketId) {
+    const room = xiangqiRooms.getRoom(roomId);
+    if (!room) return;
+
+    ensureDisconnectState(room);
+    clearDisconnectTimer(room, color);
+
+    room.disconnectTimers[color] = setTimeout(() => {
+        const latestRoom = xiangqiRooms.getRoom(roomId);
+        if (!latestRoom) return;
+        ensureDisconnectState(latestRoom);
+
+        const disconnectedInfo = latestRoom.disconnectedPlayers[color];
+        const stillDisconnected = disconnectedInfo && disconnectedInfo.socketId === disconnectedSocketId;
+        if (!stillDisconnected) return;
+
+        io.to(xiangqiRooms.getSocketRoomName(roomId)).emit('roomTerminated', {
+            reason: 'disconnectTimeout',
+            disconnectedColor: color
+        });
+
+        destroyRoomSafely(roomId);
+        console.log(`象棋房间 ${roomId} 因玩家 ${disconnectedSocketId} 离线超时（2分钟）被终止`);
+    }, ROOM_TERMINATE_DELAY_MS);
+}
+
+function tryRecoverRoom(io, socket) {
+    const playerToken = getPlayerToken(socket);
+    if (!playerToken) return;
+
+    const room = xiangqiRooms.findRoomByPlayer(playerToken, (r, token) => {
+        return r.playerTokens && (r.playerTokens.red === token || r.playerTokens.black === token);
+    });
+
+    if (!room) return;
+
+    const color = room.playerTokens.red === playerToken ? 'red' : 'black';
+    room.players[color] = socket.id;
+    xiangqiRooms.joinRoom(socket, room.id);
+
+    ensureDisconnectState(room);
+    room.disconnectedPlayers[color] = null;
+    clearDisconnectTimer(room, color);
+
+    socket.emit('roomRecovered', {
+        roomId: room.id,
+        color,
+        boardState: room.boardState,
+        currentTurn: room.currentTurn,
+        status: room.status
+    });
+
+    xiangqiRooms.broadcastToOthers(socket, room.id, 'opponentReconnected', { color });
+    console.log(`玩家 ${socket.id} 通过令牌恢复到象棋房间 ${room.id}（${color}方）`);
+}
 
 function initXiangqiHandlers(io, socket) {
+    tryRecoverRoom(io, socket);
+
     // 创建房间
     socket.on('createRoom', () => {
+        const playerToken = getPlayerToken(socket);
         const room = xiangqiRooms.createRoom(socket, {
             players: { red: socket.id, black: null },
+            playerTokens: { red: playerToken, black: null },
             boardState: XiangqiRules.getBoardCopy(),
             currentTurn: 'red',
-            status: 'waiting' // waiting, playing, finished
+            status: 'waiting', // waiting, playing, finished
+            disconnectTimers: { red: null, black: null },
+            disconnectedPlayers: { red: null, black: null }
         });
         const roomId = room.id;
         
@@ -24,8 +126,13 @@ function initXiangqiHandlers(io, socket) {
         const room = xiangqiRooms.getRoom(roomId);
         if (room) {
             if (!room.players.black) {
+                const playerToken = getPlayerToken(socket);
                 room.players.black = socket.id;
+                room.playerTokens.black = playerToken;
                 room.status = 'playing';
+                ensureDisconnectState(room);
+                room.disconnectedPlayers.black = null;
+                clearDisconnectTimer(room, 'black');
                 xiangqiRooms.joinRoom(socket, roomId);
                 
                 socket.emit('roomJoined', { roomId, color: 'black' });
@@ -114,11 +221,19 @@ function initXiangqiHandlers(io, socket) {
 
         if (room) {
             const roomId = room.id;
-            // 通知对手断开连接
-            xiangqiRooms.broadcastToOthers(socket, roomId, 'opponentDisconnected');
-            // 销毁房间
-            xiangqiRooms.destroyRoom(roomId);
-            console.log(`玩家 ${socket.id} 断开连接，已清理象棋房间 ${roomId}`);
+            const color = getPlayerColorBySocketId(room, socket.id);
+            if (!color) return;
+
+            ensureDisconnectState(room);
+            room.disconnectedPlayers[color] = { socketId: socket.id, at: Date.now() };
+
+            // 通知对手进入离线宽限期，不立即结束对局
+            xiangqiRooms.broadcastToOthers(socket, roomId, 'opponentTemporaryDisconnected', {
+                timeoutSeconds: ROOM_TERMINATE_DELAY_SECONDS
+            });
+            scheduleRoomTermination(io, roomId, color, socket.id);
+
+            console.log(`玩家 ${socket.id} 断开连接，象棋房间 ${roomId} 进入 2 分钟离线宽限期`);
         }
     });
 }
