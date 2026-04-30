@@ -110,6 +110,12 @@
             font-weight: bold;
         }
 
+        .board-wrapper {
+            transform-origin: top center;
+            width: 450px;
+            height: 500px;
+        }
+
         .board-container {
             display: none;
             position: relative;
@@ -243,9 +249,8 @@
                 width: 100%;
             }
             /* 缩小棋盘以适应手机屏幕 */
-            .board-container {
+            .board-wrapper {
                 transform: scale(0.8);
-                transform-origin: top center;
                 margin-bottom: -100px; /* 补偿 scale 带来的高度空白 */
             }
             /* 隐藏返回按钮文字，仅保留图标或在特定宽度隐藏 */
@@ -254,13 +259,13 @@
             }
         }
         @media (max-width: 400px) {
-            .board-container {
+            .board-wrapper {
                 transform: scale(0.7);
                 margin-bottom: -150px;
             }
         }
         @media (max-width: 350px) {
-            .board-container {
+            .board-wrapper {
                 transform: scale(0.6);
                 margin-bottom: -200px;
             }
@@ -289,23 +294,25 @@
 
         <div id="message-box"></div>
 
-        <div class="board-container" id="board">
-            <div class="board-lines"></div>
-            <!-- 楚河汉界 -->
-            <div class="river">
-                <div>楚河</div>
-                <div>汉界</div>
+        <div class="board-wrapper" id="board-wrapper" style="display: none;">
+            <div class="board-container" id="board">
+                <div class="board-lines"></div>
+                <!-- 楚河汉界 -->
+                <div class="river">
+                    <div>楚河</div>
+                    <div>汉界</div>
+                </div>
+                <!-- 九宫格斜线 黑方 -->
+                <div class="palace-line" style="top: 25px; left: 175px; transform: rotate(45deg);"></div>
+                <div class="palace-line" style="top: 25px; left: 275px; transform: rotate(135deg);"></div>
+                <!-- 九宫格斜线 红方 -->
+                <div class="palace-line" style="top: 375px; left: 175px; transform: rotate(45deg);"></div>
+                <div class="palace-line" style="top: 375px; left: 275px; transform: rotate(135deg);"></div>
+                
+                <!-- 棋子将由 JS 动态生成 -->
+                <!-- 移动提示点 -->
+                <div id="dots-container"></div>
             </div>
-            <!-- 九宫格斜线 黑方 -->
-            <div class="palace-line" style="top: 25px; left: 175px; transform: rotate(45deg);"></div>
-            <div class="palace-line" style="top: 25px; left: 275px; transform: rotate(135deg);"></div>
-            <!-- 九宫格斜线 红方 -->
-            <div class="palace-line" style="top: 375px; left: 175px; transform: rotate(45deg);"></div>
-            <div class="palace-line" style="top: 375px; left: 275px; transform: rotate(135deg);"></div>
-            
-            <!-- 棋子将由 JS 动态生成 -->
-            <!-- 移动提示点 -->
-            <div id="dots-container"></div>
         </div>
     </div>
 
@@ -359,6 +366,7 @@
             myColor = data.color;
             document.getElementById('display-color').innerText = myColor === 'red' ? '红方 (先手)' : '黑方 (后手)';
             document.getElementById('display-color').style.color = myColor === 'red' ? '#d32f2f' : '#1a1a1a';
+            document.getElementById('board-wrapper').style.display = 'block';
             document.getElementById('board').style.display = 'block';
             
             initBoard();
