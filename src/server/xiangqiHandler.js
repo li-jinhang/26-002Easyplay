@@ -5,6 +5,7 @@ const XiangqiRules = require('../shared/xiangqiRules');
 const xiangqiRooms = new RoomManager();
 const ROOM_TERMINATE_DELAY_MS = 2 * 60 * 1000;
 const ROOM_TERMINATE_DELAY_SECONDS = ROOM_TERMINATE_DELAY_MS / 1000;
+const MAX_SPECTATORS = 5;
 
 function getPlayerToken(socket) {
     const token = socket?.handshake?.auth?.playerToken;
@@ -15,6 +16,22 @@ function getPlayerColorBySocketId(room, socketId) {
     if (room.players.red === socketId) return 'red';
     if (room.players.black === socketId) return 'black';
     return null;
+}
+
+function ensureSpectatorState(room) {
+    if (!Array.isArray(room.spectators)) {
+        room.spectators = [];
+    }
+}
+
+function emitSpectatorCount(io, roomId) {
+    const room = xiangqiRooms.getRoom(roomId);
+    if (!room) return;
+    ensureSpectatorState(room);
+    io.to(xiangqiRooms.getSocketRoomName(roomId)).emit('spectatorCountUpdate', {
+        spectatorCount: room.spectators.length,
+        maxSpectators: MAX_SPECTATORS
+    });
 }
 
 function ensureDisconnectState(room) {
@@ -112,6 +129,7 @@ function initXiangqiHandlers(io, socket) {
             boardState: XiangqiRules.getBoardCopy(),
             currentTurn: 'red',
             status: 'waiting', // waiting, playing, finished
+            spectators: [],
             disconnectTimers: { red: null, black: null },
             disconnectedPlayers: { red: null, black: null }
         });
@@ -125,6 +143,11 @@ function initXiangqiHandlers(io, socket) {
     socket.on('joinRoom', (roomId) => {
         const room = xiangqiRooms.getRoom(roomId);
         if (room) {
+            ensureSpectatorState(room);
+            if (room.players.red === socket.id || room.players.black === socket.id) {
+                socket.emit('errorMsg', '你已在该房间中');
+                return;
+            }
             if (!room.players.black) {
                 const playerToken = getPlayerToken(socket);
                 room.players.black = socket.id;
@@ -135,11 +158,23 @@ function initXiangqiHandlers(io, socket) {
                 clearDisconnectTimer(room, 'black');
                 xiangqiRooms.joinRoom(socket, roomId);
                 
-                socket.emit('roomJoined', { roomId, color: 'black' });
+                socket.emit('roomJoined', {
+                    roomId,
+                    color: 'black',
+                    spectatorCount: room.spectators.length,
+                    maxSpectators: MAX_SPECTATORS
+                });
                 // 通知红方（房主）游戏开始
                 io.to(room.players.red).emit('gameStart', { color: 'red', opponent: socket.id });
                 // 通知黑方（加入者）游戏开始
                 io.to(socket.id).emit('gameStart', { color: 'black', opponent: room.players.red });
+                // 通知观众游戏开始
+                io.to(xiangqiRooms.getSocketRoomName(roomId)).emit('spectatorGameStart', {
+                    boardState: room.boardState,
+                    currentTurn: room.currentTurn,
+                    status: room.status
+                });
+                emitSpectatorCount(io, roomId);
                 console.log(`玩家 ${socket.id} 加入了象棋房间 ${roomId}`);
             } else {
                 socket.emit('errorMsg', '房间已满');
@@ -147,6 +182,53 @@ function initXiangqiHandlers(io, socket) {
         } else {
             socket.emit('errorMsg', '房间不存在');
         }
+    });
+
+    // 观战房间
+    socket.on('watchRoom', (roomId) => {
+        const room = xiangqiRooms.getRoom(roomId);
+        if (!room) {
+            socket.emit('errorMsg', '房间不存在');
+            return;
+        }
+
+        ensureSpectatorState(room);
+
+        if (room.players.red === socket.id || room.players.black === socket.id) {
+            socket.emit('errorMsg', '你已是该房间玩家');
+            return;
+        }
+
+        if (room.spectators.includes(socket.id)) {
+            socket.emit('watchJoined', {
+                roomId,
+                boardState: room.boardState,
+                currentTurn: room.currentTurn,
+                status: room.status,
+                spectatorCount: room.spectators.length,
+                maxSpectators: MAX_SPECTATORS
+            });
+            return;
+        }
+
+        if (room.spectators.length >= MAX_SPECTATORS) {
+            socket.emit('errorMsg', '观众席已满');
+            return;
+        }
+
+        room.spectators.push(socket.id);
+        xiangqiRooms.joinRoom(socket, roomId);
+
+        socket.emit('watchJoined', {
+            roomId,
+            boardState: room.boardState,
+            currentTurn: room.currentTurn,
+            status: room.status,
+            spectatorCount: room.spectators.length,
+            maxSpectators: MAX_SPECTATORS
+        });
+        emitSpectatorCount(io, roomId);
+        console.log(`观众 ${socket.id} 加入了象棋房间 ${roomId}`);
     });
 
     // 走棋事件
@@ -234,6 +316,18 @@ function initXiangqiHandlers(io, socket) {
             scheduleRoomTermination(io, roomId, color, socket.id);
 
             console.log(`玩家 ${socket.id} 断开连接，象棋房间 ${roomId} 进入 2 分钟离线宽限期`);
+        }
+
+        const spectatorRoom = xiangqiRooms.findRoomByPlayer(socket.id, (r, playerId) => {
+            ensureSpectatorState(r);
+            return r.spectators.includes(playerId);
+        });
+
+        if (spectatorRoom) {
+            ensureSpectatorState(spectatorRoom);
+            spectatorRoom.spectators = spectatorRoom.spectators.filter((id) => id !== socket.id);
+            emitSpectatorCount(io, spectatorRoom.id);
+            console.log(`观众 ${socket.id} 离开了象棋房间 ${spectatorRoom.id}`);
         }
     });
 }
