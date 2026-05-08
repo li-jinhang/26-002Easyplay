@@ -51,12 +51,24 @@ function clearDisconnectTimer(room, color) {
     }
 }
 
+function resetDisconnectState(room) {
+    ensureDisconnectState(room);
+    clearDisconnectTimer(room, 'red');
+    clearDisconnectTimer(room, 'black');
+    room.disconnectedPlayers.red = null;
+    room.disconnectedPlayers.black = null;
+}
+
+function finishGame(room) {
+    room.status = 'finished';
+    room.currentTurn = null;
+    resetDisconnectState(room);
+}
+
 function destroyRoomSafely(roomId) {
     const room = xiangqiRooms.getRoom(roomId);
     if (room) {
-        ensureDisconnectState(room);
-        clearDisconnectTimer(room, 'red');
-        clearDisconnectTimer(room, 'black');
+        resetDisconnectState(room);
     }
     xiangqiRooms.destroyRoom(roomId);
 }
@@ -91,8 +103,10 @@ function tryRecoverRoom(io, socket) {
     const playerToken = getPlayerToken(socket);
     if (!playerToken) return;
 
-    const room = xiangqiRooms.findRoomByPlayer(playerToken, (r, token) => {
-        return r.playerTokens && (r.playerTokens.red === token || r.playerTokens.black === token);
+    const room = xiangqiRooms.getAllRooms().find((r) => {
+        return r.status === 'playing'
+            && r.playerTokens
+            && (r.playerTokens.red === playerToken || r.playerTokens.black === playerToken);
     });
 
     if (!room) return;
@@ -277,7 +291,7 @@ function initXiangqiHandlers(io, socket) {
             });
 
             if (isCheckmate) {
-                room.status = 'finished';
+                finishGame(room);
                 const winner = playerColor === 'red' ? '红方' : '黑方';
                 io.to(xiangqiRooms.getSocketRoomName(roomId)).emit('gameOver', { winner, reason: 'checkmate' });
             }
@@ -304,12 +318,7 @@ function initXiangqiHandlers(io, socket) {
             return;
         }
 
-        room.status = 'finished';
-        room.currentTurn = null;
-        clearDisconnectTimer(room, 'red');
-        clearDisconnectTimer(room, 'black');
-        room.disconnectedPlayers.red = null;
-        room.disconnectedPlayers.black = null;
+        finishGame(room);
 
         const winner = playerColor === 'red' ? '黑方' : '红方';
         io.to(xiangqiRooms.getSocketRoomName(roomId)).emit('gameOver', {
@@ -333,6 +342,7 @@ function initXiangqiHandlers(io, socket) {
             const roomId = room.id;
             const color = getPlayerColorBySocketId(room, socket.id);
             if (!color) return;
+            if (room.status !== 'playing') return;
 
             ensureDisconnectState(room);
             room.disconnectedPlayers[color] = { socketId: socket.id, at: Date.now() };
