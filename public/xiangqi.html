@@ -183,6 +183,19 @@
             height: 500px;
         }
 
+        .board-wrapper.game-ended .board-container {
+            filter: grayscale(1) brightness(0.82);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.18);
+        }
+
+        .board-wrapper.game-ended .piece {
+            opacity: 0.9;
+        }
+
+        .board-wrapper.game-ended .dot {
+            display: none !important;
+        }
+
         .board-container {
             display: none;
             position: relative;
@@ -526,6 +539,11 @@
 
         // ==== 网络通信部分 ====
 
+        function updateBoardEndState() {
+            const boardWrapper = document.getElementById('board-wrapper');
+            boardWrapper.classList.toggle('game-ended', gameStatus === 'finished');
+        }
+
         function showPlayerPanels() {
             playerPanelsEl.style.display = 'flex';
         }
@@ -617,6 +635,7 @@
             document.getElementById('display-spectators').innerText = '0/5';
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
             showMsg('房间创建成功，等待对手加入...');
         });
 
@@ -634,6 +653,7 @@
             }
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
         });
 
         socket.on('watchJoined', (data) => {
@@ -679,6 +699,7 @@
             applyBoardOrientation();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
             showMsg('已加入观战');
         });
 
@@ -696,6 +717,7 @@
             updateTurnDisplay();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
             showMsg('游戏开始！');
             applyBoardOrientation();
         });
@@ -711,6 +733,7 @@
             updateTurnDisplay();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
             showMsg('对局开始，观战中');
         });
 
@@ -745,6 +768,7 @@
 
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
             showMsg('已恢复到断线前房间');
         });
 
@@ -767,6 +791,7 @@
             updateTurnDisplay();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
 
             if (isCheckmate) {
                 showMsg('绝杀！游戏结束');
@@ -784,6 +809,7 @@
             updateTurnDisplay();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
             showMsg('已同步最新棋盘状态');
         });
 
@@ -805,6 +831,7 @@
             closeSurrenderModal();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
         });
 
         socket.on('opponentTemporaryDisconnected', (data) => {
@@ -830,6 +857,7 @@
             closeSurrenderModal();
             updatePlayerPanels();
             updateSurrenderButtonState();
+            updateBoardEndState();
         });
 
         socket.on('errorMsg', (msg) => {
@@ -874,6 +902,7 @@
             currentTurn = 'red';
             selectedPiece = null;
             lastMove = null;
+            updateBoardEndState();
         }
 
         function renderBoard() {
