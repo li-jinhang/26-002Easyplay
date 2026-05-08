@@ -288,9 +288,37 @@ function initXiangqiHandlers(io, socket) {
         }
     });
 
-    // 认输/重新开始
-    socket.on('gameOver', (data) => {
-        xiangqiRooms.broadcastToOthers(socket, data.roomId, 'gameOver', data);
+    // 投降
+    socket.on('surrender', (data) => {
+        const roomId = data?.roomId;
+        const room = xiangqiRooms.getRoom(roomId);
+
+        if (!room || room.status !== 'playing') {
+            socket.emit('errorMsg', '当前对局无法投降');
+            return;
+        }
+
+        const playerColor = getPlayerColorBySocketId(room, socket.id);
+        if (!playerColor) {
+            socket.emit('errorMsg', '你不在该房间中');
+            return;
+        }
+
+        room.status = 'finished';
+        room.currentTurn = null;
+        clearDisconnectTimer(room, 'red');
+        clearDisconnectTimer(room, 'black');
+        room.disconnectedPlayers.red = null;
+        room.disconnectedPlayers.black = null;
+
+        const winner = playerColor === 'red' ? '黑方' : '红方';
+        io.to(xiangqiRooms.getSocketRoomName(roomId)).emit('gameOver', {
+            winner,
+            reason: 'surrender',
+            surrenderColor: playerColor
+        });
+
+        console.log(`玩家 ${socket.id} 在象棋房间 ${roomId} 投降，${winner}获胜`);
     });
 
     // 断开连接处理，可以由一个统一的断开连接处理函数调用，或者在这里单独监听
