@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三国杀 (联机) - Easyplay</title>
+    <style>
+        :root {
+            --bg: #1f2937;
+            --panel: rgba(255, 255, 255, 0.08);
+            --panel-2: rgba(255, 255, 255, 0.12);
+            --text: #f3f4f6;
+            --muted: rgba(255, 255, 255, 0.7);
+            --accent: #f59e0b;
+            --danger: #ef4444;
+            --ok: #22c55e;
+            --btn: #3b82f6;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+        }
+
+        .back-btn {
+            color: var(--text);
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.12);
+            padding: 6px 12px;
+            border-radius: 18px;
+            font-weight: bold;
+        }
+
+        .container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 330px 1fr;
+            gap: 12px;
+            padding: 12px;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 12px;
+            min-height: 0;
+        }
+
+        .setup-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: rgba(0, 0, 0, 0.25);
+            color: var(--text);
+            outline: none;
+        }
+
+        button {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 0;
+            background: var(--btn);
+            color: var(--text);
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button.secondary { background: rgba(255, 255, 255, 0.14); }
+        button.ok { background: var(--ok); }
+        button.danger { background: var(--danger); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .muted { color: var(--muted); }
+        .status { margin-top: 6px; min-height: 18px; color: var(--accent); }
+
+        .room-info {
+            display: none;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.22);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+
+        .room-info .id {
+            font-size: 1.1rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .players {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: auto;
+            max-height: 45vh;
+        }
+
+        .player {
+            background: rgba(0, 0, 0, 0.22);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .player.selected { outline: 2px solid var(--accent); }
+        .player.turn { outline: 2px solid var(--btn); }
+        .player.dead { opacity: 0.45; cursor: default; }
+        .player .name { font-weight: bold; }
+        .player .meta { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+        .player .right { text-align: right; font-size: 0.9rem; }
+
+        .log {
+            height: 38vh;
+            overflow: auto;
+            background: rgba(0, 0, 0, 0.22);
+            border-radius: 12px;
+            padding: 10px 12px;
+            line-height: 1.45;
+        }
+
+        .log-line { margin-bottom: 6px; color: rgba(255, 255, 255, 0.92); }
+        .log-line .ts { color: rgba(255, 255, 255, 0.55); margin-right: 8px; }
+
+        .main {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .topbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .topbar .pill {
+            background: rgba(0, 0, 0, 0.22);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.92);
+        }
+
+        .hand {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.22);
+            border-radius: 12px;
+            padding: 10px;
+            overflow: auto;
+            min-height: 140px;
+            align-content: flex-start;
+        }
+
+        .card {
+            width: 84px;
+            height: 114px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.10);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .card.selected { outline: 2px solid var(--accent); }
+        .card .title { font-weight: bold; }
+        .card .sub { font-size: 0.85rem; color: rgba(255, 255, 255, 0.75); }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+            .players { max-height: 28vh; }
+            .log { height: 24vh; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a class="back-btn" href="index.html">返回大厅</a>
+        <h1>三国杀 (联机)</h1>
+        <div class="muted" id="myName"></div>
+    </header>
+
+    <div class="container">
+        <div class="panel" id="leftPanel">
+            <div id="setupArea">
+                <div class="setup-row">
+                    <button id="createRoomBtn" class="ok" style="flex: 1;">创建房间</button>
+                    <button id="toggleReadyBtn" class="secondary" style="flex: 1;" disabled>准备</button>
+                </div>
+                <div class="setup-row">
+                    <input id="roomIdInput" type="text" placeholder="输入4位房间号">
+                    <button id="joinRoomBtn" style="width: 120px;">加入</button>
+                </div>
+
+                <div style="margin: 10px 0;">
+                    <div class="muted" style="margin-bottom: 6px;">选择武将</div>
+                    <select id="heroSelect">
+                        <option value="">请选择武将</option>
+                    </select>
+                    <div class="muted" id="heroInfo" style="margin-top: 8px; line-height: 1.4;"></div>
+                </div>
+                <div class="status" id="statusMsg"></div>
+            </div>
+
+            <div class="room-info" id="roomInfo">
+                <div class="muted">房间号</div>
+                <div class="id" id="roomIdDisplay">----</div>
+                <div class="muted" id="roomStateDisplay" style="margin-top: 6px;"></div>
+            </div>
+
+            <div class="muted" style="margin: 10px 0 8px;">玩家</div>
+            <div class="players" id="playersList"></div>
+
+            <div class="muted" style="margin: 12px 0 8px;">战报</div>
+            <div class="log" id="logBox"></div>
+        </div>
+
+        <div class="panel main" id="mainPanel">
+            <div class="topbar">
+                <div class="pill" id="turnInfo">等待进入房间</div>
+                <div class="pill" id="phaseInfo">-</div>
+                <div class="pill" id="promptInfo">-</div>
+            </div>
+
+            <div class="hand" id="handArea"></div>
+
+            <div class="actions">
+                <button id="useBtn" class="ok" disabled>使用</button>
+                <button id="endTurnBtn" class="secondary" disabled>结束回合</button>
+                <button id="respondBtn" class="ok" disabled>响应</button>
+                <button id="passBtn" class="danger" disabled>放弃</button>
+                <button id="discardBtn" class="ok" disabled>弃牌</button>
+                <div class="status" id="actionMsg" style="margin: 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/shared/sgsRules.js"></script>
+    <script>
+        const socket = io();
+
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const joinRoomBtn = document.getElementById('joinRoomBtn');
+        const roomIdInput = document.getElementById('roomIdInput');
+        const toggleReadyBtn = document.getElementById('toggleReadyBtn');
+        const heroSelect = document.getElementById('heroSelect');
+        const heroInfo = document.getElementById('heroInfo');
+        const statusMsg = document.getElementById('statusMsg');
+
+        const roomInfo = document.getElementById('roomInfo');
+        const roomIdDisplay = document.getElementById('roomIdDisplay');
+        const roomStateDisplay = document.getElementById('roomStateDisplay');
+        const playersList = document.getElementById('playersList');
+        const logBox = document.getElementById('logBox');
+
+        const handArea = document.getElementById('handArea');
+        const useBtn = document.getElementById('useBtn');
+        const endTurnBtn = document.getElementById('endTurnBtn');
+        const respondBtn = document.getElementById('respondBtn');
+        const passBtn = document.getElementById('passBtn');
+        const discardBtn = document.getElementById('discardBtn');
+        const actionMsg = document.getElementById('actionMsg');
+
+        const turnInfo = document.getElementById('turnInfo');
+        const phaseInfo = document.getElementById('phaseInfo');
+        const promptInfo = document.getElementById('promptInfo');
+
+        const myName = localStorage.getItem('easyplay_user') || ('游客' + Math.floor(Math.random() * 1000));
+        document.getElementById('myName').textContent = myName;
+
+        let roomId = null;
+        let state = null;
+        let selectedCardId = null;
+        let selectedTargetId = null;
+        let selectedDiscard = new Set();
+
+        function showStatus(msg) {
+            statusMsg.textContent = msg || '';
+            if (msg) setTimeout(() => { statusMsg.textContent = ''; }, 2800);
+        }
+
+        function showAction(msg) {
+            actionMsg.textContent = msg || '';
+            if (msg) setTimeout(() => { actionMsg.textContent = ''; }, 2200);
+        }
+
+        function ts() {
+            const d = new Date();
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        }
+
+        function addLog(text) {
+            const el = document.createElement('div');
+            el.className = 'log-line';
+            el.innerHTML = `<span class="ts">${ts()}</span>${text}`;
+            logBox.appendChild(el);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        createRoomBtn.addEventListener('click', () => {
+            socket.emit('sgsCreateRoom', myName);
+        });
+
+        joinRoomBtn.addEventListener('click', () => {
+            const v = roomIdInput.value.trim();
+            if (v.length !== 4) {
+                showStatus('请输入4位房间号');
+                return;
+            }
+            socket.emit('sgsJoinRoom', { roomId: v, playerName: myName });
+        });
+
+        toggleReadyBtn.addEventListener('click', () => {
+            if (!roomId) return;
+            socket.emit('sgsToggleReady', { roomId });
+        });
+
+        heroSelect.addEventListener('change', () => {
+            if (!roomId) return;
+            const heroId = heroSelect.value;
+            if (!heroId) return;
+            socket.emit('sgsChooseHero', { roomId, heroId });
+        });
+
+        useBtn.addEventListener('click', () => {
+            if (!roomId || !state) return;
+            if (!selectedCardId) {
+                showAction('请选择一张牌');
+                return;
+            }
+            const card = (state.myHand || []).find(c => c.id === selectedCardId);
+            if (!card) return;
+            const meta = SgsRules.getCardMeta(card.code);
+            const needTarget = meta && meta.needTarget;
+            if (needTarget && !selectedTargetId) {
+                showAction('请选择目标');
+                return;
+            }
+            socket.emit('sgsPlayCard', { roomId, cardId: selectedCardId, targets: needTarget ? [selectedTargetId] : [] });
+            selectedCardId = null;
+            selectedTargetId = null;
+            selectedDiscard.clear();
+        });
+
+        endTurnBtn.addEventListener('click', () => {
+            if (!roomId) return;
+            socket.emit('sgsEndTurn', { roomId });
+            selectedCardId = null;
+            selectedTargetId = null;
+            selectedDiscard.clear();
+        });
+
+        respondBtn.addEventListener('click', () => {
+            if (!roomId || !state || !state.pending) return;
+            const pending = state.pending;
+            if (!pending.isMe) return;
+            if (!selectedCardId) {
+                showAction('请选择一张牌响应');
+                return;
+            }
+            socket.emit('sgsRespond', { roomId, cardId: selectedCardId, pass: false });
+            selectedCardId = null;
+            selectedTargetId = null;
+            selectedDiscard.clear();
+        });
+
+        passBtn.addEventListener('click', () => {
+            if (!roomId || !state || !state.pending) return;
+            const pending = state.pending;
+            if (!pending.isMe) return;
+            socket.emit('sgsRespond', { roomId, pass: true });
+            selectedCardId = null;
+            selectedTargetId = null;
+            selectedDiscard.clear();
+        });
+
+        discardBtn.addEventListener('click', () => {
+            if (!roomId || !state || !state.pending) return;
+            const pending = state.pending;
+            if (pending.kind !== 'discard' || !pending.isMe) return;
+            const need = pending.count;
+            if (selectedDiscard.size !== need) {
+                showAction(`需要选择${need}张弃牌`);
+                return;
+            }
+            socket.emit('sgsDiscard', { roomId, cardIds: Array.from(selectedDiscard) });
+            selectedDiscard.clear();
+            selectedCardId = null;
+        });
+
+        socket.on('errorMsg', (msg) => {
+            showStatus(msg);
+            showAction(msg);
+        });
+
+        socket.on('sgsRoomCreated', (id) => {
+            roomId = id;
+            enterRoom(id);
+        });
+
+        socket.on('sgsRoomJoined', (data) => {
+            roomId = data.roomId;
+            enterRoom(roomId);
+        });
+
+        socket.on('sgsRoomUpdate', (s) => {
+            state = s;
+            updateUI();
+        });
+
+        socket.on('sgsLog', (data) => {
+            if (data && data.text) addLog(data.text);
+        });
+
+        socket.on('sgsGameOver', (data) => {
+            if (data && data.winner) {
+                addLog(`胜者：${getPlayerName(data.winner)}`);
+            } else {
+                addLog('游戏结束');
+            }
+        });
+
+        function enterRoom(id) {
+            roomInfo.style.display = 'block';
+            roomIdDisplay.textContent = id;
+            toggleReadyBtn.disabled = false;
+            addLog(`进入房间 ${id}`);
+        }
+
+        function getPlayerName(pid) {
+            const p = (state && state.players || []).find(x => x.id === pid);
+            return p ? p.name : '未知';
+        }
+
+        function updateHeroSelect() {
+            const list = state.availableHeroes || [];
+            const current = state.myHeroId || '';
+            heroSelect.innerHTML = '<option value="">请选择武将</option>';
+            list.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h.id;
+                opt.textContent = `${h.name}（${h.kingdom} ${h.maxHp}血）`;
+                if (h.id === current) opt.selected = true;
+                heroSelect.appendChild(opt);
+            });
+            const hero = list.find(h => h.id === current);
+            heroInfo.textContent = hero ? `技能：${(hero.skills || []).join('、')}` : '';
+        }
+
+        function updatePlayers() {
+            playersList.innerHTML = '';
+            const cur = state.currentTurnPid;
+            state.players.forEach(p => {
+                const el = document.createElement('div');
+                el.className = 'player';
+                if (p.dead) el.classList.add('dead');
+                if (cur && cur === p.id) el.classList.add('turn');
+                if (selectedTargetId && selectedTargetId === p.id) el.classList.add('selected');
+
+                const heroText = p.heroName ? `${p.heroName}（${p.kingdom}）` : '未选将';
+                const hpText = (p.hp != null && p.maxHp != null) ? `${p.hp}/${p.maxHp}` : '-';
+                const tags = [];
+                if (p.isOwner) tags.push('房主');
+                if (p.ready) tags.push('已准备');
+                if (p.id === socket.id) tags.push('我');
+                if (p.dead) tags.push('阵亡');
+
+                el.innerHTML = `
+                    <div>
+                        <div class="name">${p.name}</div>
+                        <div class="meta">${heroText}</div>
+                        <div class="meta">手牌：${p.handCount}</div>
+                    </div>
+                    <div class="right">
+                        <div>体力：${hpText}</div>
+                        <div class="meta">${tags.join(' · ')}</div>
+                    </div>
+                `;
+
+                el.addEventListener('click', () => {
+                    if (p.dead) return;
+                    if (p.id === socket.id) return;
+                    selectedTargetId = (selectedTargetId === p.id) ? null : p.id;
+                    updatePlayers();
+                });
+                playersList.appendChild(el);
+            });
+        }
+
+        function cardLabel(card) {
+            return `${card.name}${card.suit}${card.rank}`;
+        }
+
+        function updateHand() {
+            handArea.innerHTML = '';
+            const hand = state.myHand || [];
+            hand.forEach(card => {
+                const el = document.createElement('div');
+                el.className = 'card';
+                if (selectedCardId === card.id) el.classList.add('selected');
+                if (selectedDiscard.has(card.id)) el.classList.add('selected');
+                el.innerHTML = `
+                    <div class="title">${card.name}</div>
+                    <div class="sub">${card.suit}${card.rank}</div>
+                    <div class="sub">${card.type === 'trick' ? '锦囊' : '基本牌'}</div>
+                `;
+                el.addEventListener('click', () => {
+                    if (!state) return;
+                    if (state.pending && state.pending.kind === 'discard' && state.pending.isMe) {
+                        const need = state.pending.count;
+                        if (selectedDiscard.has(card.id)) {
+                            selectedDiscard.delete(card.id);
+                        } else {
+                            if (selectedDiscard.size >= need) return;
+                            selectedDiscard.add(card.id);
+                        }
+                        updateHand();
+                        return;
+                    }
+                    selectedDiscard.clear();
+                    selectedCardId = (selectedCardId === card.id) ? null : card.id;
+                    updateHand();
+                });
+                handArea.appendChild(el);
+            });
+        }
+
+        function updateTopbar() {
+            const curPid = state.currentTurnPid;
+            if (!curPid) {
+                turnInfo.textContent = '等待游戏开始';
+            } else {
+                turnInfo.textContent = `当前回合：${getPlayerName(curPid)}`;
+            }
+            phaseInfo.textContent = `阶段：${state.phase || '-'}`;
+
+            if (state.pending) {
+                const p = state.pending;
+                if (p.kind === 'respond') {
+                    promptInfo.textContent = p.isMe ? `需要响应：${p.need}` : `等待 ${getPlayerName(p.toPid)} 响应`;
+                } else if (p.kind === 'duel') {
+                    promptInfo.textContent = p.isMe ? '决斗：请出杀' : `决斗进行中（${getPlayerName(p.askingPid)} 出杀）`;
+                } else if (p.kind === 'mass') {
+                    promptInfo.textContent = p.isMe ? `请响应：${p.need}` : `等待 ${getPlayerName(p.currentTarget)} 响应`;
+                } else if (p.kind === 'discard') {
+                    promptInfo.textContent = p.isMe ? `弃牌：选择${p.count}张` : `等待 ${getPlayerName(p.pid)} 弃牌`;
+                } else if (p.kind === 'save') {
+                    promptInfo.textContent = p.isMe ? '濒死：请出桃' : `濒死：等待 ${getPlayerName(p.currentHelper)} 出桃`;
+                } else {
+                    promptInfo.textContent = '等待处理';
+                }
+            } else {
+                promptInfo.textContent = '-';
+            }
+        }
+
+        function updateActions() {
+            useBtn.disabled = true;
+            endTurnBtn.disabled = true;
+            respondBtn.disabled = true;
+            passBtn.disabled = true;
+            discardBtn.disabled = true;
+
+            if (!state) return;
+            roomStateDisplay.textContent = state.state === 'waiting' ? '等待中' : (state.state === 'playing' ? '进行中' : '已结束');
+            updateTopbar();
+
+            if (state.state !== 'playing') {
+                return;
+            }
+            const isMyTurn = state.currentTurnPid === socket.id;
+            if (state.pending) {
+                if (state.pending.kind === 'discard' && state.pending.isMe) {
+                    discardBtn.disabled = false;
+                    passBtn.disabled = true;
+                    respondBtn.disabled = true;
+                    useBtn.disabled = true;
+                    endTurnBtn.disabled = true;
+                    return;
+                }
+                if (state.pending.isMe) {
+                    respondBtn.disabled = false;
+                    passBtn.disabled = false;
+                }
+                return;
+            }
+
+            if (isMyTurn && state.phase === 'play') {
+                useBtn.disabled = false;
+                endTurnBtn.disabled = false;
+            }
+        }
+
+        function updateUI() {
+            if (!state) return;
+            updateHeroSelect();
+            updatePlayers();
+            updateHand();
+            updateActions();
+        }
+    </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { initPokerHandlers } = require('./pokerHandler');
 const { initXiangqiHandlers } = require('./xiangqiHandler');
+const { initSgsHandlers } = require('./sgsHandler');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +25,7 @@ io.on('connection', (socket) => {
     // 初始化各个游戏处理器
     initXiangqiHandlers(io, socket);
     initPokerHandlers(io, socket);
+    initSgsHandlers(io, socket);
 
     // 断开连接日志（具体的清理逻辑在各自的 Handler 中）
     socket.on('disconnect', () => {
